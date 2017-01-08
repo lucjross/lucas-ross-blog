@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Override some methods and delegate others without reimplementing everything
+      </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="description" content="Lucas's Programming Blog">
+      <meta name="author" content="Lucas Ross">
+      <meta name="keywords" content="">
+      <meta name="generator" content="JBake">
+      <!-- Le styles-->
+      <link rel="stylesheet" href="../../css/bootstrap.min.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/asciidoctor.css')-->
+      <link rel="stylesheet" href="../../css/base.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/prettify.css')-->
+      <!-- HTML5 shim, for IE6-8 support of HTML5 elements-->
+      <!-- if lt IE 9
+      script(src='../../js/html5shiv.min.js')
+      
+      -->
+      <!-- Fav icon-->
+      <link rel="shortcut icon" href="../../favicon.ico">
+      <!-- SyntaxHighlighter-->
+      <link href="../../css/shCore.css" rel="stylesheet" type="text/css">
+      <link href="../../css/shThemeDefault.css" rel="stylesheet" type="text/css">
+    </head>
+  </html>
+  <body>
+    <div id="wrap">
+      <div role="navigation" class="navbar navbar-default navbar-fixed-top">
+        <div class="container">
+          <div class="navbar-header">
+            <button type="button" data-toggle="collapse" data-target=".navbar-collapse" class="navbar-toggle"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button><a href="../../" class="navbar-brand">Lucas's Programming Blog</a>
+          </div>
+          <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+              <li><a href="../../index.html">Home</a></li>
+              <li><a href="../../about.html">About</a></li>
+              <li><a href="../../feed.xml">Subscribe</a></li>
+              <!--li.dropdown-->
+              <!--    a(href='#', class='dropdown-toggle', data-toggle='dropdown') Dropdown <b class="caret"></b>-->
+              <!--    ul.dropdown-menu-->
+              <!--        li-->
+              <!--            a(href='#') Action-->
+              <!--        li-->
+              <!--            a(href='#') Another action-->
+              <!--        li-->
+              <!--            a(href='#') Something else here-->
+              <!--        li.divider-->
+              <!--        li.dropdown-header Nav header-->
+              <!--        li-->
+              <!--            a(href='#') Separated link-->
+              <!--        li-->
+              <!--            a(href='#') One more separated link-->
+              
+              
+              
+              
+              
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <div class="page-header">
+          <h1>Override some methods and delegate others without reimplementing everything</h1>
+          <p><em>15 December 2016</em></p>
+          <p>
+<p>Given this class:</p>
+<pre class="brush: java">
+ interface Things {
+ 
+     String w();
+     long x();
+     int y();
+     Class&lt;?&gt; z();
+ }
+</pre>
+
+<p>Suppose you've gotten ahold of an <i>instance</i> of some implementation of this interface.
+    You happen to know that that implementation of Things#y does something really awful,
+    and you're stuck with that implementation for now because it comes from a library or framework.
+    So, you could create a wrapper for that instance like thus:</p>
+<pre class="brush: java">
+ class ThingsWrapper implements Things {
+     
+     private final Things things;
+     
+     ThingsWrapper(final Things things) {
+         this.things = things;
+     }
+  
+     @Override String w() { return things.w(); }
+  
+     @Override long x() { return things.x(); }
+  
+     @Override int y() {
+         // the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return things.y() / 100;
+     }
+  
+ 	@Override Class&lt;?&gt; z() { return things.z(); }
+ }
+</pre>
+<p>If there are 50 methods on this class, then, yep, we'll have to override 49 methods with nothing but delegations.</p>
+
+<h2>Solution 1: Dynamic Proxy</h2>
+<p>A much lazier way to do this is with dynamic proxying. There is a simple way to do this with the JDK:</p>
+<pre class="brush: java">
+ Things wrapped0 = (Things) Proxy.newProxyInstance(
+     Things.class.getClassLoader(),
+     new Class&lt;?&gt;[] { Things.class },
+     (proxy, method, args) -&gt; {
+ 
+         if ("y".equals(method.getName())) {
+             return originalThings.y() / 100;
+         } else {
+             return method.invoke(originalThings, args);
+         }
+     });
+</pre>
+<p>This way we only have to override (or really, tell a proxy factory to do something special with)
+    methods that we need overridden and don't have to bother with others.</p>
+<p>However, this is really brittle because of the use of a literal String "y" to compare a method name.
+    It's also incorrect, strictly speaking, since parameter types also must be compared.
+    I prefer another technique illustrated in another blog post. Some AspectJ advice is defined:</p>
+<pre class="brush: java">
+ @Aspect
+ class ThingsAspect {
+ 
+     @Around("execution(int com.example.Things.y())")
+     Object aroundY(ProceedingJoinPoint pjp) throws Throwable {
+ 		// the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return (int) pjp.proceed(pjp.getArgs()) / 100;
+     }
+ }
+</pre>
+<p>Then, we can throw our instance into an AspectJ proxy factory and get a wrapper instance out of it.</p>
+<pre class="brush: java">
+ AspectJProxyFactory aspectJProxyFactory = new AspectJProxyFactory();
+ aspectJProxyFactory.setTarget(originalThings);
+ aspectJProxyFactory.addAspect(ThingsAspect.class);
+ Things wrapped = aspectJProxyFactory.getProxy();
+ 
+ Assert.assertEquals(originalThings.y() / 100, wrapped.y());
+</pre>
+<p>In this screenshot you can see how IntelliJ IDEA provides syntax highlighting
+    and navigation markers for well-formed Aspects.</p>
+<p><img class="img-responsive" src="img/image2016-12-12 14-29-33.jpeg"/></p>
+
+<div class="well">None of these dynamic proxying tools can extend <code>final</code> classes (anything in <code>java.lang</code>).</div>
+
+<h2>Solution 2: @lombok.experimental.Delegate</h2>
+<p><a href="https://projectlombok.org/features/experimental/Delegate.html">@Delegate</a>
+    is in the lombok "experimental" package, so it may go away in the future.
+    It's a less flexible construct, but will be slightly more performant since proxying isn't involved.
+    The <a href="https://plugins.jetbrains.com/idea/plugin/6317-lombok-plugin">IntelliJ lombok plugin</a> does support this.</p>
+<pre class="brush: java">
+ class ThingsWrapper implements Things {
+  
+     @Delegate(excludes = DelegateExcludes.class)
+     private final Things things;
+  
+     private interface DelegateExcludes {
+         int y();
+     }
+  
+     ThingsWrapper(final Things things) {
+         this.things = things;
+     }
+  
+     @Override
+     public int y() {
+         // the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return things.y() / 100;
+     }
+ }
+</pre>
+
+</p>
+          <!--hr-->
+        </div>
+      </div>
+    </div>
+  </body>
+  <div id="push"></div>
+  <div id="footer">
+    <div class="container">
+      <p class="muted credit">&copy; 2016 | Mixed with<a href="http://getbootstrap.com/"> Bootstrap v3.1.1</a> | Baked with<a href="http://jbake.org"> JBake <span>v2.5.0</span></a><br>All product names, logos, and brands are property of their respective owners.
+        All company, product and service names used in this website are for identification purposes only.
+        Use of these names, logos, and brands does not imply endorsement.
+      </p>
+    </div>
+  </div>
+  <script src="../../js/jquery-1.11.1.min.js"></script>
+  <script src="../../js/bootstrap.min.js"></script>
+  <!--script(src='#{content.rootpath}js/prettify.js')-->
+  <!-- SyntaxHighlighter-->
+  <script type="text/javascript" src="../../js/shCore.js"></script>
+  <script type="text/javascript" src="../../js/shBrushJava.js"></script>
+  <script type="text/javascript" src="../../js/shBrushXml.js"></script>
+  <script type="text/javascript">SyntaxHighlighter.all();</script>
+</html>

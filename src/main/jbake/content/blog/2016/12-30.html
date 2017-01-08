@@ -1,0 +1,48 @@
+title=Improved Hot-Swapping with DCEVM + HotswapAgent
+date=2016-12-30
+type=post
+tags=blog
+status=published
+~~~~~~
+
+<p>Maybe you've seen this sort of error before:</p>
+<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 7.06.52 PM.jpeg"/></p>
+
+<p>This can happen when you're running an application in IntelliJ IDEA and you select <i>Run</i> > <i>Reload Changed Classes</i>.
+    As the red pop-up suggests, the VM was unable to hot-swap a class change,
+    which could have involved any of the following:</p>
+<ul>
+    <li>Changing a method signature</li>
+    <li>Adding or removing a method or field</li>
+    <li>Changing the superclass of a class</li>
+</ul>
+<p>(See: <a href="http://arhipov.blogspot.com/2016/02/hotswap-vs-hot-deploy_12.html">HotSwap vs hot deploy</a>)</p>
+<p>That leaves only changes to statements within method bodies,
+    which indeed is the only hot-swap capability provided by the vanilla runtime.
+    There's a pretty easy way to enable hot-swapping for all these cases,
+    except the case of changing the superclass.
+    <a href="https://github.com/HotswapProjects/HotswapAgent">HotswapAgent</a> is a java agent that provides this capability,
+    using a HotSpot JRE that is patched with <a href="https://github.com/dcevm/dcevm">Dynamic Code Evolution VM</a>.</p>
+
+<div class="well">The modifications described here are not suitable for any kind of deployment
+    as they introduce instability to the runtime environment.
+    It's designed only for improving productivity during development.</div>
+
+<p>To try it out, I simply followed the directions on the HotswapAgent readme.
+    I patched a local Oracle 8u92 JDK with DCEVM using their installer jar.
+    Then I somewhat arbitrarily chose a web server app to try it out with.
+    The next step was creating the Run/Debug Configuration:</p>
+<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 8.30.04 PM.jpeg"/></p>
+
+<p>I started the server and saw in the logs that the agent was active:</p>
+<blockquote>
+    HOTSWAP AGENT: 16:16:34.809 INFO (org.hotswap.agent.HotswapAgent) - Loading Hotswap agent {0.4.0-SNAPSHOT} - unlimited runtime class redefinition.<br/>
+    HOTSWAP AGENT: 16:16:35.612 INFO (org.hotswap.agent.config.PluginRegistry) - Discovered plugins: [Hotswapper, WatchResources, AnonymousClassPatch, ClassInitPlugin, Hibernate, Hibernate3JPA, Hibernate3, Spring, Jersey1, Jersey2, Jetty, Tomcat, ZK, Logback, Log4j2, MyFaces, Mojarra, Seam, ELResolver, WildFlyELResolver, OsgiEquinox, Proxy, WebObjects, Weld, JBossModules, ResteasyRegistry, Gae, Deltaspike, JavaBeans]
+</blockquote>
+
+<p>While it was still running, I added a method to a class (one that had already been loaded by a ClassLoader),
+    and hit <i>Reload Changed Classes</i>. Good news:</p>
+
+<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 7.12.23 PM.jpeg"/></p>
+
+<p>This saved me about thirty seconds that I would have had to spend waiting for a server restart.</p>

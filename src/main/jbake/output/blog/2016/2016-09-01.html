@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Lucas's Compendium of Odd Java Things | Volume 1: Type Intersections
+      </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="description" content="Lucas's Programming Blog">
+      <meta name="author" content="Lucas Ross">
+      <meta name="keywords" content="">
+      <meta name="generator" content="JBake">
+      <!-- Le styles-->
+      <link rel="stylesheet" href="../../css/bootstrap.min.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/asciidoctor.css')-->
+      <link rel="stylesheet" href="../../css/base.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/prettify.css')-->
+      <!-- HTML5 shim, for IE6-8 support of HTML5 elements-->
+      <!-- if lt IE 9
+      script(src='../../js/html5shiv.min.js')
+      
+      -->
+      <!-- Fav icon-->
+      <link rel="shortcut icon" href="../../favicon.ico">
+      <!-- SyntaxHighlighter-->
+      <link href="../../css/shCore.css" rel="stylesheet" type="text/css">
+      <link href="../../css/shThemeDefault.css" rel="stylesheet" type="text/css">
+    </head>
+  </html>
+  <body>
+    <div id="wrap">
+      <div role="navigation" class="navbar navbar-default navbar-fixed-top">
+        <div class="container">
+          <div class="navbar-header">
+            <button type="button" data-toggle="collapse" data-target=".navbar-collapse" class="navbar-toggle"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button><a href="../../" class="navbar-brand">Lucas's Programming Blog</a>
+          </div>
+          <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+              <li><a href="../../index.html">Home</a></li>
+              <li><a href="../../about.html">About</a></li>
+              <li><a href="../../feed.xml">Subscribe</a></li>
+              <!--li.dropdown-->
+              <!--    a(href='#', class='dropdown-toggle', data-toggle='dropdown') Dropdown <b class="caret"></b>-->
+              <!--    ul.dropdown-menu-->
+              <!--        li-->
+              <!--            a(href='#') Action-->
+              <!--        li-->
+              <!--            a(href='#') Another action-->
+              <!--        li-->
+              <!--            a(href='#') Something else here-->
+              <!--        li.divider-->
+              <!--        li.dropdown-header Nav header-->
+              <!--        li-->
+              <!--            a(href='#') Separated link-->
+              <!--        li-->
+              <!--            a(href='#') One more separated link-->
+              
+              
+              
+              
+              
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <div class="page-header">
+          <h1>Lucas's Compendium of Odd Java Things | Volume 1: Type Intersections</h1>
+          <p><em>01 September 2016</em></p>
+          <p>
+<p>This is the first of a series of blogs focused on Java language & Java virtual machine features that are rarely
+    used, and might even make you wonder what Sun or Oracle was smoking when they came up with it.
+    I invite suggestions of topics for this blog as I love to explore obscure aspects of programming,
+    which probably makes me a gigantic hipster--all I need is a trucker hat with an espresso cup logo on it.
+    You know, I liked lambda expressions before they got all "mainstream."</p>
+
+<p>The topic for today is intersection types
+    (see <a href="https://docs.oracle.com/javase/specs/jls/se6/html/typesValues.html#123179">JLS Third Edition, 4.9, "Intersection Types"</a>).
+    To illustrate, say you have the following class definitions,
+    as well as a method that needs to be able to take them as parameters.</p>
+
+<pre class="brush: java">
+    @FunctionalInterface
+    interface Puntable {
+        double puntability();
+    }
+
+    enum Animal implements Puntable {
+        HORSE(0.05),
+        CAT(60);
+
+        private final double puntability;
+
+        Animal(final double puntability) {
+            this.puntability = puntability;
+        }
+
+        @Override
+        public double puntability() {
+            return puntability;
+        }
+    }
+
+    enum Ball implements Puntable {
+        DANCE_PARTY_FOR_FANCY_PEOPLE(0),
+        BASKETBALL(30),
+        FOOTBALL(60.5);
+
+        private final double puntability;
+
+        Ball(final double puntability) {
+            this.puntability = puntability;
+        }
+
+        @Override
+        public double puntability() {
+            return puntability;
+        }
+    }
+
+    static &lt;???&gt; ??? mostPuntable(??? t1, ??? t2) {
+
+        if (t1.puntability() == t2.puntability()) {
+            return t1.ordinal() > t2.ordinal() ? t1 : t1.ordinal() < t2.ordinal() ? t2 : t1;
+        }
+        else {
+            return t1.puntability() > t2.puntability() ? t1 : t2;
+        }
+    }
+</pre>
+
+<p>What can we replace the "???" with? The method needs to be able to use methods on both Enum and Puntable;
+    we also want to avoid explicit casting.
+    We don't have types that both implement Puntable and extend these Enums--the latter of which being impossible
+    since an Enum can't be subclassed. The solution is to use an intersection of these two types as such:</p>
+
+<pre class="brush: java">
+    static &lt;T extends Enum&lt;T&gt; & Puntable&gt; T mostPuntable(T t1, T t2) { ...
+</pre>
+
+<p>This syntax was introduced around Java SE5. It provides the ability to use multiple bounds
+    for a parameterized type when you can't or won't be bothered to use a type that encompasses all of those bounds.
+    Here is another example:</p>
+
+<pre class="brush: java">
+    static &lt;T, U extends List&lt;T&gt; & RandomAccess&gt; void manipulateList(U list) {
+        // something where random access is important,
+        // but it doesn't have to be a java.util.ArrayList
+    }
+
+    {
+        List&lt;String&gt; list = Arrays.asList("taco1", "taco2");
+        manipulateList(list); // <-- Nope. This will not compile.
+    }
+</pre>
+
+<p>Another way to use them is casting a lambda or method reference as an intersection type.
+    This is restricted to cases where one of the bounds is a functional interface and the other bounds
+    are either method-less or share the same method signature.
+    One real-world usage of this is when you want to
+    <a href="http://stackoverflow.com/questions/22807912/how-to-serialize-a-lambda">make a lambda both Serializable and something else</a>.</p>
+<pre class="brush: java">
+    Puntable p = (Puntable & Serializable) System::currentTimeMillis;
+    System.out.println(p.puntability()); // e.g. 1.471563193067E12
+</pre>
+
+<p>Note that you can use more than two bounds in a type intersection.</p>
+</p>
+          <hr>
+        </div>
+      </div>
+    </div>
+  </body>
+  <div id="push"></div>
+  <div id="footer">
+    <div class="container">
+      <p class="muted credit">&copy; 2016 | Mixed with<a href="http://getbootstrap.com/"> Bootstrap v3.1.1</a>| Baked with<a href="http://jbake.org"> JBake <span>v2.5.0</span></a><br>All product names, logos, and brands are property of their respective owners.
+        All company, product and service names used in this website are for identification purposes only.
+        Use of these names, logos, and brands does not imply endorsement.
+      </p>
+    </div>
+  </div>
+  <script src="../../js/jquery-1.11.1.min.js"></script>
+  <script src="../../js/bootstrap.min.js"></script>
+  <!--script(src='#{content.rootpath}js/prettify.js')-->
+  <!-- SyntaxHighlighter-->
+  <script type="text/javascript" src="../../js/shCore.js"></script>
+  <script type="text/javascript" src="../../js/shBrushJava.js"></script>
+  <script type="text/javascript" src="../../js/shBrushXml.js"></script>
+  <script type="text/javascript">SyntaxHighlighter.all();</script>
+</html>

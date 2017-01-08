@@ -1,0 +1,131 @@
+title=Lucas's Compendium of Odd Java Things | Volume 3: Lambdas Throwing Checked Exceptions
+date=2016-10-01
+type=post
+tags=blog
+status=published
+~~~~~~
+
+<p>Probably any developer developing in Java 8 will eventually run into the issue of wanting to call a method
+    that takes a functional parameter, but wanting to give it one that throws a checked exception.
+    For example, IntelliJ will be all like,</p>
+<p><img class="img-responsive" src="img/Screen%20Shot%202016-08-31%20at%203.02.31%20PM.png"/></p>
+
+<p>And then you'll be all like,</p>
+<p><img class="img-responsive" src="img/200.gif"/></p>
+
+<p>Relax, Titus. First of all, there's really no nice way to pass a lambda that throws a checked exception
+    to any of the commonly used methods that take them, such as those provided by Stream.
+    You may as well go "back to basics" and use Java 7 syntax. It isn't any less readable.</p>
+<pre class="brush: java">
+     for (final String s : classNames) {
+         Class.forName(s);
+     }
+</pre>
+
+<p>However, there are ways to make it work, even if it would have to be monstrously cruel
+    to other developers reading your code.
+    There is a <a href="http://stackoverflow.com/questions/18198176/java-8-lambda-function-that-throws-exception">well-traveled StackOverflow thread addressing this topic.</a>
+    The answer accepted there describes how to use lambdas with exceptions re-thrown as RuntimeExceptions
+    (which need not be caught or declared). The point of checked exceptions
+    is that you are forced to catch or declare them, thereby mitigating bugs,
+    which makes the RuntimeException solution seem kind of self-defeating.
+    An interesting idea (the <a href="http://stackoverflow.com/a/27252163/1907186">second answer on the thread</a>)
+    is to override the functional method
+    with a default one, and add an abstract, non-default method
+    (which becomes the one that is implemented by lambdas) that throws something.</p>
+<pre class="brush: java">
+     @FunctionalInterface
+     public interface CheckedConsumer&lt;T&gt; extends Consumer&lt;T&gt; {
+
+         @Override
+         default void accept(final T t) {
+             try {
+                 acceptThrows(t);
+             } catch (Exception e) {
+                 doThrow(e);
+             }
+         }
+
+         void acceptThrows(T t) throws Exception;
+
+         @SuppressWarnings("unchecked")
+         static &lt;E extends Exception&gt; void doThrow(Exception e) throws E {
+             throw (E) e;
+         }
+     }
+</pre>
+
+<p>How does that static doThrow method work, by the way?
+    <a href="http://stackoverflow.com/questions/31316581/a-peculiar-feature-of-exception-type-inference-in-java-8">StackOverflow nails it again</a>.</p>
+
+<p>It may be noted that the <a href="https://projectlombok.org/features/SneakyThrows.html">lombok.SneakyThrows annotation</a>
+    may be used to achieve a similar result. I find lombok really exciting in general because of its contribution to
+    conciseness in Java code, but I wouldn't recommend using this annotation for a reason I will explain shortly.</p>
+
+<p>Oh and also, why not make acceptThrows generic with an exception type parameter, which would make it more flexible
+    (i.e., <code>&lt;E extends Exception&gt; void acceptThrows(T t) throws E</code>)?
+    Simply because there is no syntax that would accommodate its use as a lambda, owing to the language spec
+    (<a href="http://docs.oracle.com/javase/specs/jls/se8/html/jls-15.html#jls-15.27.3">15.27.3</a>):</p>
+<blockquote>
+    <p>A lambda expression is <i>congruent</i> with a function type if all of the following are true:</p>
+    <ul>
+        <li>The function type has no type parameters.</li>
+        <li>...</li>
+    </ul>
+</blockquote>
+
+<p>Since the CheckedConsumer interface extends Consumer, it can be used to fix the broken code:</p>
+<pre class="brush: java">
+    Collections.singleton("abc").forEach((CheckedConsumer&lt;String&gt;) Class::forName);
+</pre>
+<div class="well">A quick explanation of the above cast expression: a method reference is treated just like a lambda.
+    A cast is an explicit way (context clues being another way) for the compiler to infer the target type
+    of a lambda expression. If it were missing, as in the initial example,
+    the compiler would infer the target type from the forEach method parameter and
+    thus assume <code>Class::forName</code> should implement Consumer#accept.</div>
+
+<p>Still, this isn't much better than the technique of rethrowing with RuntimeExceptions because,
+    since Iterable#forEach doesn't throw anything, the compiler won't expect the method calling this code
+    to throw anything, either. We need it to compile, but for robustness, we still want to require the exception
+    to be handled. To this end, you'd have to wrap it with another method that does throw the exceptions
+    that other methods should be expected to handle, or that at least throws Exception.</p>
+<pre class="brush: java">
+     static &lt;T&gt; void forEach(Collection&lt;T&gt; collection, CheckedConsumer&lt;T&gt; consumer) throws Exception {
+         collection.forEach(consumer);
+     }
+
+     {
+         forEach(Collections.singleton("abc"), Class::forName); // Unhandled exception: java.lang.Exception
+                                                                // (which is roughly what we want)
+     }
+</pre>
+
+<p>But, this is definitely nicer than the alternative of using a try-catch inside the lambda,
+    having it throw RuntimeException, catching it, and conditionally throwing the cause,
+    in order to achieve the same functionality:</p>
+<pre class="brush: java">
+     try {
+         classNames.forEach(s -&gt; {
+             try {
+                 Class.forName(s);
+             }
+            catch (ClassNotFoundException e) {
+                 throw new RuntimeException(e);
+             }
+         });
+     }
+     catch (Exception e) {
+         if (e.getCause() instanceof ClassNotFoundException) {
+             throw (ClassNotFoundException) e.getCause();
+         }
+         else {
+             throw e; // some other Throwable happened
+         }
+     }
+</pre>
+
+<p>I personally would only ever use the "CheckedConsumer" trick if I had to use a particular
+    Exception-throwing lambda in about 1000 different places and it saved me a lot of typing.
+    In any case, this illustrates an unfortunate limitation of the Java language.</p>
+
+

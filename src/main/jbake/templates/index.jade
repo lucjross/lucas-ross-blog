@@ -1,0 +1,31 @@
+doctype html
+html
+  include header.jade
+  body
+    div#wrap
+      include menu.jade
+      div.container
+        div.page-header
+          h1 Lucas's Programming Blog
+
+          - var toShow = 3;
+          each post in posts
+            if toShow > 0
+              a(href="#{post.uri}")
+                h1 #{post.title}
+              p #{formatter.format(post.date,"dd MMMM yyyy")}
+              p !{post.body}
+              br
+              - toShow--;
+
+          hr
+
+          p Older posts are available in the <a href="archive.html" shape="rect">archive</a>.
+
+  include footer.jade
+
+
+
+
+
+

@@ -1,0 +1,21 @@
+title=IntelliJ IDEA | Replace (migrate) all usages of a class with another
+date=2016-12-01
+type=post
+tags=blog
+status=published
+~~~~~~
+
+<p>This applies to IntelliJ IDEA 2016.3. For example, to switch from <code>javax.validation.constraints.NotNull</code>
+    to <code>lombok.NonNull</code>:</p>
+<ol>
+    <li>Go to <i>Refactor</i> > <i>Migrate...</i></li>
+    <li>In <i>Package and Class Migration</i> window, click <i>New...</i></li>
+    <li>In <i>Edit Migration Map</i>, enter a name, e.g. "javax notnull -> lombok nonnull"</li>
+    <li>Click <i>Add</i> (+)</li>
+    <li>Select <i>Class</i></li>
+    <li>Enter old name ("javax.validation.constraints.NotNull")</li>
+    <li>Enter new name ("lombok.NonNull")</li>
+    <li><i>OK</i></li>
+    <li><i>Run</i></li>
+    <li>In <i>Refactoring Preview</i>, verify the old class was found and click <i>Do Refactor</i></li>
+</ol>

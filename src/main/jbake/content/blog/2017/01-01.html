@@ -1,0 +1,90 @@
+title=Does it matter whether I return an empty collection or a null one?
+date=2017-01-01
+type=post
+tags=blog
+status=published
+~~~~~~
+
+<p>This is kind of a philosophical question. Is code A any better or worse than code B?</p>
+<div class="panel panel-default">
+    <div class="panel-heading">A</div>
+    <div class="panel-body"><pre class="brush: java">
+ Collection&lt;String&gt; words() {
+     Collection&lt;Sentence&gt; sentences = dao.getSentences();
+     if (sentences != null) {
+         return sentences.stream().flatMap(sentence -&gt; sentence.getWords().stream())
+             .collect(Collectors.toList());
+     }
+     else {
+         return Collections.emptyList();
+     }
+ }
+    </pre></div>
+</div>
+<div class="panel panel-default">
+    <div class="panel-heading">B</div>
+    <div class="panel-body"><pre class="brush: java">
+ Optional&lt;Collection&lt;String&gt;&gt; words() {
+     Collection&lt;Sentence&gt; sentences = dao.getSentences();
+     if (sentences == null) {
+         return Optional.empty();
+     }
+     else {
+         return Optional.of(
+             sentences.stream().flatMap(sentence -&gt; sentence.getWords().stream())
+                 .collect(Collectors.toList()));
+     }
+ }
+    </pre></div>
+</div>
+
+<p>In the absence of documentation, here is how I would interpret two methods like those.</p>
+<table class="table">
+    <tr>
+        <th>Method</th>
+        <th>What the method is expected to do</th>
+        <th>What the method actually does</th>
+        <th>What you get</th>
+    </tr>
+    <tr>
+        <td>A</td>
+        <td>Obtain some X and give you some Y based upon those X</td>
+        <td>
+            <p>If unable to obtain X, we'll just pretend that we did.</p>
+            <p>Thereby, we can pretend that we know what Y exists, and arbitrarily provide some Y (zero of them, perhaps).
+                No one will ever know the difference!</p>
+        </td>
+        <td>Some (zero) Y</td>
+    </tr>
+    <tr>
+        <td>B</td>
+        <td>Obtain some X and give you some Y based upon those X</td>
+        <td>
+            <p>If unable to obtain X, then we don't know what X exists. Some other source may know, but we don't.</p>
+            <p>Therefore we don't know what Y exists either. We'll admit that we don't know, which may be a helpful signal to the user.</p>
+        </td>
+        <td>null or <code>Optional.empty()</code></td>
+    </tr>
+</table>
+
+<p>You may notice that I'm biased on this issue, but either way, there is a difference.
+    For a given scenario, how do you decide whether this matters?
+    Basically, how do you know whether it's going to affect a user's (another developer's) experience?
+    A few factors may be considered:</p>
+<ul>
+    <li>Is the method public or protected? If so, there's no telling how an imprecise return value can affect future development,
+        so a developer should probably err on the side of returning (or throwing) an indicator of "missing information" as necessary.</li>
+    <li>Is the method adapting to a legacy or third-party API? If so, there might be no choice but to accept "null" to mean
+        "empty" or vice-versa.</li>
+</ul>
+<p>In any case, is it really necessary to force developers to ask these questions and have to solve mysteries about
+    what a function result is supposed to mean? Providing a clear contract can make this a non-issue:</p>
+<pre class="brush: java">
+ /**
+  * @return  a Collection containing all the Words in all the Sentences. If the Sentences are unknown,
+  *          then an empty list will be returned.
+  */
+ @NotNull
+ public Collection&lt;String&gt; words() { ...
+</pre>
+

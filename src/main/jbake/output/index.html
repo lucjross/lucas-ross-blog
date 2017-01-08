@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Lucas's Programming Blog
+      </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="description" content="Lucas's Programming Blog">
+      <meta name="author" content="Lucas Ross">
+      <meta name="keywords" content="">
+      <meta name="generator" content="JBake">
+      <!-- Le styles-->
+      <link rel="stylesheet" href="css/bootstrap.min.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/asciidoctor.css')-->
+      <link rel="stylesheet" href="css/base.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/prettify.css')-->
+      <!-- HTML5 shim, for IE6-8 support of HTML5 elements-->
+      <!-- if lt IE 9
+      script(src='js/html5shiv.min.js')
+      
+      -->
+      <!-- Fav icon-->
+      <link rel="shortcut icon" href="favicon.ico">
+      <!-- SyntaxHighlighter-->
+      <link href="css/shCore.css" rel="stylesheet" type="text/css">
+      <link href="css/shThemeDefault.css" rel="stylesheet" type="text/css">
+    </head>
+  </html>
+  <body>
+    <div id="wrap">
+      <div role="navigation" class="navbar navbar-default navbar-fixed-top">
+        <div class="container">
+          <div class="navbar-header">
+            <button type="button" data-toggle="collapse" data-target=".navbar-collapse" class="navbar-toggle"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button><a href="" class="navbar-brand">Lucas's Programming Blog</a>
+          </div>
+          <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+              <li><a href="index.html">Home</a></li>
+              <li><a href="about.html">About</a></li>
+              <li><a href="feed.xml">Subscribe</a></li>
+              <!--li.dropdown-->
+              <!--    a(href='#', class='dropdown-toggle', data-toggle='dropdown') Dropdown <b class="caret"></b>-->
+              <!--    ul.dropdown-menu-->
+              <!--        li-->
+              <!--            a(href='#') Action-->
+              <!--        li-->
+              <!--            a(href='#') Another action-->
+              <!--        li-->
+              <!--            a(href='#') Something else here-->
+              <!--        li.divider-->
+              <!--        li.dropdown-header Nav header-->
+              <!--        li-->
+              <!--            a(href='#') Separated link-->
+              <!--        li-->
+              <!--            a(href='#') One more separated link-->
+              
+              
+              
+              
+              
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <div class="page-header">
+          <h1>Lucas's Programming Blog</h1><a href="blog/2017/01-01.html">
+            <h1>Does it matter whether I return an empty collection or a null one?</h1></a>
+          <p>01 January 2017</p>
+          <p>
+<p>This is kind of a philosophical question. Is code A any better or worse than code B?</p>
+<div class="panel panel-default">
+    <div class="panel-heading">A</div>
+    <div class="panel-body"><pre class="brush: java">
+ Collection&lt;String&gt; words() {
+     Collection&lt;Sentence&gt; sentences = dao.getSentences();
+     if (sentences != null) {
+         return sentences.stream().flatMap(sentence -&gt; sentence.getWords().stream())
+             .collect(Collectors.toList());
+     }
+     else {
+         return Collections.emptyList();
+     }
+ }
+    </pre></div>
+</div>
+<div class="panel panel-default">
+    <div class="panel-heading">B</div>
+    <div class="panel-body"><pre class="brush: java">
+ Optional&lt;Collection&lt;String&gt;&gt; words() {
+     Collection&lt;Sentence&gt; sentences = dao.getSentences();
+     if (sentences == null) {
+         return Optional.empty();
+     }
+     else {
+         return Optional.of(
+             sentences.stream().flatMap(sentence -&gt; sentence.getWords().stream())
+                 .collect(Collectors.toList()));
+     }
+ }
+    </pre></div>
+</div>
+
+<p>In the absence of documentation, here is how I would interpret two methods like those.</p>
+<table class="table">
+    <tr>
+        <th>Method</th>
+        <th>What the method is expected to do</th>
+        <th>What the method actually does</th>
+        <th>What you get</th>
+    </tr>
+    <tr>
+        <td>A</td>
+        <td>Obtain some X and give you some Y based upon those X</td>
+        <td>
+            <p>If unable to obtain X, we'll just pretend that we did.</p>
+            <p>Thereby, we can pretend that we know what Y exists, and arbitrarily provide some Y (zero of them, perhaps).
+                No one will ever know the difference!</p>
+        </td>
+        <td>Some (zero) Y</td>
+    </tr>
+    <tr>
+        <td>B</td>
+        <td>Obtain some X and give you some Y based upon those X</td>
+        <td>
+            <p>If unable to obtain X, then we don't know what X exists. Some other source may know, but we don't.</p>
+            <p>Therefore we don't know what Y exists either. We'll admit that we don't know, which may be a helpful signal to the user.</p>
+        </td>
+        <td>null or <code>Optional.empty()</code></td>
+    </tr>
+</table>
+
+<p>You may notice that I'm biased on this issue, but either way, there is a difference.
+    For a given scenario, how do you decide whether this matters?
+    Basically, how do you know whether it's going to affect a user's (another developer's) experience?
+    A few factors may be considered:</p>
+<ul>
+    <li>Is the method public or protected? If so, there's no telling how an imprecise return value can affect future development,
+        so a developer should probably err on the side of returning (or throwing) an indicator of "missing information" as necessary.</li>
+    <li>Is the method adapting to a legacy or third-party API? If so, there might be no choice but to accept "null" to mean
+        "empty" or vice-versa.</li>
+</ul>
+<p>In any case, is it really necessary to force developers to ask these questions and have to solve mysteries about
+    what a function result is supposed to mean? Providing a clear contract can make this a non-issue:</p>
+<pre class="brush: java">
+ /**
+  * @return  a Collection containing all the Words in all the Sentences. If the Sentences are unknown,
+  *          then an empty list will be returned.
+  */
+ @NotNull
+ public Collection&lt;String&gt; words() { ...
+</pre>
+
+</p><br><a href="blog/2016/12-30.html">
+            <h1>Improved Hot-Swapping with DCEVM + HotswapAgent</h1></a>
+          <p>30 December 2016</p>
+          <p>
+<p>Maybe you've seen this sort of error before:</p>
+<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 7.06.52 PM.jpeg"/></p>
+
+<p>This can happen when you're running an application in IntelliJ IDEA and you select <i>Run</i> > <i>Reload Changed Classes</i>.
+    As the red pop-up suggests, the VM was unable to hot-swap a class change,
+    which could have involved any of the following:</p>
+<ul>
+    <li>Changing a method signature</li>
+    <li>Adding or removing a method or field</li>
+    <li>Changing the superclass of a class</li>
+</ul>
+<p>(See: <a href="http://arhipov.blogspot.com/2016/02/hotswap-vs-hot-deploy_12.html">HotSwap vs hot deploy</a>)</p>
+<p>That leaves only changes to statements within method bodies,
+    which indeed is the only hot-swap capability provided by the vanilla runtime.
+    There's a pretty easy way to enable hot-swapping for all these cases,
+    except the case of changing the superclass.
+    <a href="https://github.com/HotswapProjects/HotswapAgent">HotswapAgent</a> is a java agent that provides this capability,
+    using a HotSpot JRE that is patched with <a href="https://github.com/dcevm/dcevm">Dynamic Code Evolution VM</a>.</p>
+
+<div class="well">The modifications described here are not suitable for any kind of deployment
+    as they introduce instability to the runtime environment.
+    It's designed only for improving productivity during development.</div>
+
+<p>To try it out, I simply followed the directions on the HotswapAgent readme.
+    I patched a local Oracle 8u92 JDK with DCEVM using their installer jar.
+    Then I somewhat arbitrarily chose a web server app to try it out with.
+    The next step was creating the Run/Debug Configuration:</p>
+<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 8.30.04 PM.jpeg"/></p>
+
+<p>I started the server and saw in the logs that the agent was active:</p>
+<blockquote>
+    HOTSWAP AGENT: 16:16:34.809 INFO (org.hotswap.agent.HotswapAgent) - Loading Hotswap agent {0.4.0-SNAPSHOT} - unlimited runtime class redefinition.<br/>
+    HOTSWAP AGENT: 16:16:35.612 INFO (org.hotswap.agent.config.PluginRegistry) - Discovered plugins: [Hotswapper, WatchResources, AnonymousClassPatch, ClassInitPlugin, Hibernate, Hibernate3JPA, Hibernate3, Spring, Jersey1, Jersey2, Jetty, Tomcat, ZK, Logback, Log4j2, MyFaces, Mojarra, Seam, ELResolver, WildFlyELResolver, OsgiEquinox, Proxy, WebObjects, Weld, JBossModules, ResteasyRegistry, Gae, Deltaspike, JavaBeans]
+</blockquote>
+
+<p>While it was still running, I added a method to a class (one that had already been loaded by a ClassLoader),
+    and hit <i>Reload Changed Classes</i>. Good news:</p>
+
+<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 7.12.23 PM.jpeg"/></p>
+
+<p>This saved me about thirty seconds that I would have had to spend waiting for a server restart.</p>
+</p><br><a href="blog/2016/12-15.html">
+            <h1>Override some methods and delegate others without reimplementing everything</h1></a>
+          <p>15 December 2016</p>
+          <p>
+<p>Given this class:</p>
+<pre class="brush: java">
+ interface Things {
+ 
+     String w();
+     long x();
+     int y();
+     Class&lt;?&gt; z();
+ }
+</pre>
+
+<p>Suppose you've gotten ahold of an <i>instance</i> of some implementation of this interface.
+    You happen to know that that implementation of Things#y does something really awful,
+    and you're stuck with that implementation for now because it comes from a library or framework.
+    So, you could create a wrapper for that instance like thus:</p>
+<pre class="brush: java">
+ class ThingsWrapper implements Things {
+     
+     private final Things things;
+     
+     ThingsWrapper(final Things things) {
+         this.things = things;
+     }
+  
+     @Override String w() { return things.w(); }
+  
+     @Override long x() { return things.x(); }
+  
+     @Override int y() {
+         // the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return things.y() / 100;
+     }
+  
+ 	@Override Class&lt;?&gt; z() { return things.z(); }
+ }
+</pre>
+<p>If there are 50 methods on this class, then, yep, we'll have to override 49 methods with nothing but delegations.</p>
+
+<h2>Solution 1: Dynamic Proxy</h2>
+<p>A much lazier way to do this is with dynamic proxying. There is a simple way to do this with the JDK:</p>
+<pre class="brush: java">
+ Things wrapped0 = (Things) Proxy.newProxyInstance(
+     Things.class.getClassLoader(),
+     new Class&lt;?&gt;[] { Things.class },
+     (proxy, method, args) -&gt; {
+ 
+         if ("y".equals(method.getName())) {
+             return originalThings.y() / 100;
+         } else {
+             return method.invoke(originalThings, args);
+         }
+     });
+</pre>
+<p>This way we only have to override (or really, tell a proxy factory to do something special with)
+    methods that we need overridden and don't have to bother with others.</p>
+<p>However, this is really brittle because of the use of a literal String "y" to compare a method name.
+    It's also incorrect, strictly speaking, since parameter types also must be compared.
+    I prefer another technique illustrated in another blog post. Some AspectJ advice is defined:</p>
+<pre class="brush: java">
+ @Aspect
+ class ThingsAspect {
+ 
+     @Around("execution(int com.example.Things.y())")
+     Object aroundY(ProceedingJoinPoint pjp) throws Throwable {
+ 		// the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return (int) pjp.proceed(pjp.getArgs()) / 100;
+     }
+ }
+</pre>
+<p>Then, we can throw our instance into an AspectJ proxy factory and get a wrapper instance out of it.</p>
+<pre class="brush: java">
+ AspectJProxyFactory aspectJProxyFactory = new AspectJProxyFactory();
+ aspectJProxyFactory.setTarget(originalThings);
+ aspectJProxyFactory.addAspect(ThingsAspect.class);
+ Things wrapped = aspectJProxyFactory.getProxy();
+ 
+ Assert.assertEquals(originalThings.y() / 100, wrapped.y());
+</pre>
+<p>In this screenshot you can see how IntelliJ IDEA provides syntax highlighting
+    and navigation markers for well-formed Aspects.</p>
+<p><img class="img-responsive" src="img/image2016-12-12 14-29-33.jpeg"/></p>
+
+<div class="well">None of these dynamic proxying tools can extend <code>final</code> classes (anything in <code>java.lang</code>).</div>
+
+<h2>Solution 2: @lombok.experimental.Delegate</h2>
+<p><a href="https://projectlombok.org/features/experimental/Delegate.html">@Delegate</a>
+    is in the lombok "experimental" package, so it may go away in the future.
+    It's a less flexible construct, but will be slightly more performant since proxying isn't involved.
+    The <a href="https://plugins.jetbrains.com/idea/plugin/6317-lombok-plugin">IntelliJ lombok plugin</a> does support this.</p>
+<pre class="brush: java">
+ class ThingsWrapper implements Things {
+  
+     @Delegate(excludes = DelegateExcludes.class)
+     private final Things things;
+  
+     private interface DelegateExcludes {
+         int y();
+     }
+  
+     ThingsWrapper(final Things things) {
+         this.things = things;
+     }
+  
+     @Override
+     public int y() {
+         // the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return things.y() / 100;
+     }
+ }
+</pre>
+
+</p><br>
+          <hr>
+          <p>Older posts are available in the <a href="archive.html" shape="rect">archive</a>.</p>
+        </div>
+      </div>
+    </div>
+  </body>
+  <div id="push"></div>
+  <div id="footer">
+    <div class="container">
+      <p class="muted credit">&copy; 2016 | Mixed with<a href="http://getbootstrap.com/"> Bootstrap v3.1.1</a> | Baked with<a href="http://jbake.org"> JBake <span>v2.5.0</span></a><br>All product names, logos, and brands are property of their respective owners.
+        All company, product and service names used in this website are for identification purposes only.
+        Use of these names, logos, and brands does not imply endorsement.
+      </p>
+    </div>
+  </div>
+  <script src="js/jquery-1.11.1.min.js"></script>
+  <script src="js/bootstrap.min.js"></script>
+  <!--script(src='#{content.rootpath}js/prettify.js')-->
+  <!-- SyntaxHighlighter-->
+  <script type="text/javascript" src="js/shCore.js"></script>
+  <script type="text/javascript" src="js/shBrushJava.js"></script>
+  <script type="text/javascript" src="js/shBrushXml.js"></script>
+  <script type="text/javascript">SyntaxHighlighter.all();</script>
+</html>

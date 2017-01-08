@@ -1,0 +1,118 @@
+title=Override some methods and delegate others without reimplementing everything
+date=2016-12-15
+type=post
+tags=blog
+status=published
+~~~~~~
+
+<p>Given this class:</p>
+<pre class="brush: java">
+ interface Things {
+ 
+     String w();
+     long x();
+     int y();
+     Class&lt;?&gt; z();
+ }
+</pre>
+
+<p>Suppose you've gotten ahold of an <i>instance</i> of some implementation of this interface.
+    You happen to know that that implementation of Things#y does something really awful,
+    and you're stuck with that implementation for now because it comes from a library or framework.
+    So, you could create a wrapper for that instance like thus:</p>
+<pre class="brush: java">
+ class ThingsWrapper implements Things {
+     
+     private final Things things;
+     
+     ThingsWrapper(final Things things) {
+         this.things = things;
+     }
+  
+     @Override String w() { return things.w(); }
+  
+     @Override long x() { return things.x(); }
+  
+     @Override int y() {
+         // the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return things.y() / 100;
+     }
+  
+ 	@Override Class&lt;?&gt; z() { return things.z(); }
+ }
+</pre>
+<p>If there are 50 methods on this class, then, yep, we'll have to override 49 methods with nothing but delegations.</p>
+
+<h2>Solution 1: Dynamic Proxy</h2>
+<p>A much lazier way to do this is with dynamic proxying. There is a simple way to do this with the JDK:</p>
+<pre class="brush: java">
+ Things wrapped0 = (Things) Proxy.newProxyInstance(
+     Things.class.getClassLoader(),
+     new Class&lt;?&gt;[] { Things.class },
+     (proxy, method, args) -&gt; {
+ 
+         if ("y".equals(method.getName())) {
+             return originalThings.y() / 100;
+         } else {
+             return method.invoke(originalThings, args);
+         }
+     });
+</pre>
+<p>This way we only have to override (or really, tell a proxy factory to do something special with)
+    methods that we need overridden and don't have to bother with others.</p>
+<p>However, this is really brittle because of the use of a literal String "y" to compare a method name.
+    It's also incorrect, strictly speaking, since parameter types also must be compared.
+    I prefer another technique illustrated in another blog post. Some AspectJ advice is defined:</p>
+<pre class="brush: java">
+ @Aspect
+ class ThingsAspect {
+ 
+     @Around("execution(int com.example.Things.y())")
+     Object aroundY(ProceedingJoinPoint pjp) throws Throwable {
+ 		// the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return (int) pjp.proceed(pjp.getArgs()) / 100;
+     }
+ }
+</pre>
+<p>Then, we can throw our instance into an AspectJ proxy factory and get a wrapper instance out of it.</p>
+<pre class="brush: java">
+ AspectJProxyFactory aspectJProxyFactory = new AspectJProxyFactory();
+ aspectJProxyFactory.setTarget(originalThings);
+ aspectJProxyFactory.addAspect(ThingsAspect.class);
+ Things wrapped = aspectJProxyFactory.getProxy();
+ 
+ Assert.assertEquals(originalThings.y() / 100, wrapped.y());
+</pre>
+<p>In this screenshot you can see how IntelliJ IDEA provides syntax highlighting
+    and navigation markers for well-formed Aspects.</p>
+<p><img class="img-responsive" src="img/image2016-12-12 14-29-33.jpeg"/></p>
+
+<div class="well">None of these dynamic proxying tools can extend <code>final</code> classes (anything in <code>java.lang</code>).</div>
+
+<h2>Solution 2: @lombok.experimental.Delegate</h2>
+<p><a href="https://projectlombok.org/features/experimental/Delegate.html">@Delegate</a>
+    is in the lombok "experimental" package, so it may go away in the future.
+    It's a less flexible construct, but will be slightly more performant since proxying isn't involved.
+    The <a href="https://plugins.jetbrains.com/idea/plugin/6317-lombok-plugin">IntelliJ lombok plugin</a> does support this.</p>
+<pre class="brush: java">
+ class ThingsWrapper implements Things {
+  
+     @Delegate(excludes = DelegateExcludes.class)
+     private final Things things;
+  
+     private interface DelegateExcludes {
+         int y();
+     }
+  
+     ThingsWrapper(final Things things) {
+         this.things = things;
+     }
+  
+     @Override
+     public int y() {
+         // the interface says i'm supposed to get a ratio but the impl provides a percentage
+         return things.y() / 100;
+     }
+ }
+</pre>
+

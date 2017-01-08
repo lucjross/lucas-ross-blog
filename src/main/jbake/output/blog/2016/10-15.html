@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Lucas's Compendium of Odd Java Things | Volume 4: Abstract Methods in Enums
+      </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="description" content="Lucas's Programming Blog">
+      <meta name="author" content="Lucas Ross">
+      <meta name="keywords" content="">
+      <meta name="generator" content="JBake">
+      <!-- Le styles-->
+      <link rel="stylesheet" href="../../css/bootstrap.min.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/asciidoctor.css')-->
+      <link rel="stylesheet" href="../../css/base.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/prettify.css')-->
+      <!-- HTML5 shim, for IE6-8 support of HTML5 elements-->
+      <!-- if lt IE 9
+      script(src='../../js/html5shiv.min.js')
+      
+      -->
+      <!-- Fav icon-->
+      <link rel="shortcut icon" href="../../favicon.ico">
+      <!-- SyntaxHighlighter-->
+      <link href="../../css/shCore.css" rel="stylesheet" type="text/css">
+      <link href="../../css/shThemeDefault.css" rel="stylesheet" type="text/css">
+    </head>
+  </html>
+  <body>
+    <div id="wrap">
+      <div role="navigation" class="navbar navbar-default navbar-fixed-top">
+        <div class="container">
+          <div class="navbar-header">
+            <button type="button" data-toggle="collapse" data-target=".navbar-collapse" class="navbar-toggle"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button><a href="../../" class="navbar-brand">Lucas's Programming Blog</a>
+          </div>
+          <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+              <li><a href="../../index.html">Home</a></li>
+              <li><a href="../../about.html">About</a></li>
+              <li><a href="../../feed.xml">Subscribe</a></li>
+              <!--li.dropdown-->
+              <!--    a(href='#', class='dropdown-toggle', data-toggle='dropdown') Dropdown <b class="caret"></b>-->
+              <!--    ul.dropdown-menu-->
+              <!--        li-->
+              <!--            a(href='#') Action-->
+              <!--        li-->
+              <!--            a(href='#') Another action-->
+              <!--        li-->
+              <!--            a(href='#') Something else here-->
+              <!--        li.divider-->
+              <!--        li.dropdown-header Nav header-->
+              <!--        li-->
+              <!--            a(href='#') Separated link-->
+              <!--        li-->
+              <!--            a(href='#') One more separated link-->
+              
+              
+              
+              
+              
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <div class="page-header">
+          <h1>Lucas's Compendium of Odd Java Things | Volume 4: Abstract Methods in Enums</h1>
+          <p><em>15 October 2016</em></p>
+          <p>
+<p><code>enum</code>s may have abstract methods, as long as every enum constant implements every abstract method.</p>
+<pre class="brush: java">
+ enum TrailerParkBoy {
+
+     BUBBLES {
+         @Override public int getMoney() {
+             return fixShoppingCarts();
+         }
+     },
+     JULIAN {
+         @Override public int getMoney() {
+             return runCasino() + flipTrailer();
+         }
+     },
+     RICKY {
+         @Override public int getMoney() {
+             return recycleBottles() - employCoryAndTrevor();
+         }
+     };
+
+     public abstract int getMoney();
+ }
+</pre>
+<p>This is useful when every constant is associated with some unique computation, and not just some unique value.
+    (In the latter case one may as well define the constants with the values as constructor parameters.)</p>
+<p>With Java 8, there is a way to accomplish the same thing in a more concise way.
+    The same operations can be defined by lambdas/method references, which are passed to a constructor
+    and invoked in a non-abstract method.</p>
+<pre class="brush: java">
+ enum TrailerParkBoyWithLambdas {
+
+     BUBBLES(Main::fixShoppingCarts),
+     JULIAN(() -> runCasino() + flipTrailer()),
+     RICKY(() -> recycleBottles() - employCoryAndTrevor());
+
+     private final Supplier&lt;Integer&gt; moneySupplier;
+
+     TrailerParkBoyWithLambdas(Supplier&lt;Integer&gt; moneySupplier) {
+         this.moneySupplier = moneySupplier;
+     }
+
+     public int getMoney() {
+         return moneySupplier.get();
+     }
+ }
+</pre>
+<p>The lambda technique should exhibit no worse performance thanks to
+    <a href="https://declara.com/collection/49b0b2e6-dc44-49f3-a4f4-69945bc3b280/post/20b1dbc5-fafc-4398-aa89-36372a6a4e43">call stack optimizations by JIT compilers</a>.
+    Actually, it might be better given that
+    <a href="https://www.infoq.com/articles/Java-8-Lambdas-A-Peek-Under-the-Hood">lambdas are compiled to static methods</a>.</p>
+</p>
+          <!--hr-->
+        </div>
+      </div>
+    </div>
+  </body>
+  <div id="push"></div>
+  <div id="footer">
+    <div class="container">
+      <p class="muted credit">&copy; 2016 | Mixed with<a href="http://getbootstrap.com/"> Bootstrap v3.1.1</a> | Baked with<a href="http://jbake.org"> JBake <span>v2.5.0</span></a><br>All product names, logos, and brands are property of their respective owners.
+        All company, product and service names used in this website are for identification purposes only.
+        Use of these names, logos, and brands does not imply endorsement.
+      </p>
+    </div>
+  </div>
+  <script src="../../js/jquery-1.11.1.min.js"></script>
+  <script src="../../js/bootstrap.min.js"></script>
+  <!--script(src='#{content.rootpath}js/prettify.js')-->
+  <!-- SyntaxHighlighter-->
+  <script type="text/javascript" src="../../js/shCore.js"></script>
+  <script type="text/javascript" src="../../js/shBrushJava.js"></script>
+  <script type="text/javascript" src="../../js/shBrushXml.js"></script>
+  <script type="text/javascript">SyntaxHighlighter.all();</script>
+</html>

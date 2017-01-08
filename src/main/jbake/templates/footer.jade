@@ -1,0 +1,24 @@
+div#push
+
+div#footer
+  div.container
+    p(class="muted credit")
+      | &copy; 2016 | Mixed with
+      a(href="http://getbootstrap.com/")  Bootstrap v3.1.1
+      |  | Baked with
+      a(href="http://jbake.org")  JBake <span>#{version}</span>
+      br
+      | All product names, logos, and brands are property of their respective owners.
+      | All company, product and service names used in this website are for identification purposes only.
+      | Use of these names, logos, and brands does not imply endorsement.
+
+script(src='#{content.rootpath}js/jquery-1.11.1.min.js')
+script(src='#{content.rootpath}js/bootstrap.min.js')
+//script(src='#{content.rootpath}js/prettify.js')
+
+// SyntaxHighlighter
+script(type='text/javascript' src='#{content.rootpath}js/shCore.js')
+script(type='text/javascript' src='#{content.rootpath}js/shBrushJava.js')
+script(type='text/javascript' src='#{content.rootpath}js/shBrushXml.js')
+script(type='text/javascript').
+  SyntaxHighlighter.all();

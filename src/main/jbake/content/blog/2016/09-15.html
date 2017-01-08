@@ -1,0 +1,410 @@
+title=Lucas's Compendium of Odd Java Things | Volume 2: Dynamic Implementations
+date=2016-09-15
+type=post
+tags=blog
+status=published
+~~~~~~
+
+<p>
+    In this second installment of the series, I'll provide an overview of a few technologies that enable
+    runtime generation of implementation classes and/or proxies.
+    You may ask yourself, "why should I care about this low-level stuff?"
+    Many frameworks we use daily rely upon runtime classes/proxies to do a number of things:</p>
+
+<ul>
+    <li>Lazy loading (with Hibernate)</li>
+    <li>Aspects (AspectJ/Spring AOP)</li>
+    <li>Implementation by configuration (for MyBatis mappers, etc.)</li>
+    <li><a href="https://en.wikipedia.org/wiki/Java_remote_method_invocation">Remote Method Invocation</a></li>
+</ul>
+
+<p>There's a <a href="http://stackoverflow.com/questions/933993/what-are-dynamic-proxy-classes-and-why-would-i-use-one">StackOverflow post that covers this as well</a>.</p>
+
+<h2>Preface</h2>
+<p>The goals of this overview are</p>
+<ul>
+    <li>to provide examples of usage of a few class generation/proxying facilities,
+        such that they all produce the same output but vary in how it's produced; and</li>
+    <li>to provide some rough performance statistics for comparison.</li>
+</ul>
+<p>However, this overview will not go into the nuts and bolts of JVM bytecode
+    (which is largely what these tools abstract away for us).</p>
+
+<p>Each example will use the following simple classes:</p>
+<pre class="brush: java">
+     public class Person {
+
+         private final String name;
+         private final String position;
+         private final LocalDate birthdate;
+
+         public Person(String name, String position, LocalDate birthdate) {
+             this.name = name;
+             this.position = position;
+             this.birthdate = birthdate;
+         }
+
+         public String getName() {
+             return name;
+         }
+
+         public String getPosition() {
+             return position;
+         }
+
+         public LocalDate getBirthdate() {
+             return birthdate;
+         }
+     }
+
+     public interface PersonService {
+
+         Person getPerson(String name);
+
+         default void removePerson(Person person) {
+             System.out.println("default removePerson");
+         }
+
+         default void updatePerson(Person person) throws Exception {
+             System.out.println("default updatePerson");
+         }
+     }
+
+     public abstract class AbstractPersonService implements PersonService {
+
+         private final DataSource dataSource;
+
+         public AbstractPersonService(DataSource dataSource) {
+             this.dataSource = dataSource;
+         }
+
+         @Override
+         public Person getPerson(String name) {
+             System.out.println("getPerson");
+
+             // ...
+             if ("Jim Lahey".equals(name)) {
+                 return new Person("Jim Lahey", "Trailer Park Supervisor", LocalDate.of(1946, 4, 12));
+             }
+             else {
+                 return null;
+             }
+         }
+
+         @Override
+         public abstract void updatePerson(Person person);
+     }
+</pre>
+
+<p>These classes provide basis for a few constraints:</p>
+<ul>
+    <li>The generated class will be a non-abstract implementation of PersonService;</li>
+    <li>AbstractPersonService#getPerson(String) will not be overridden;</li>
+    <li>PersonService#removePerson(Person) will not be overridden; and</li>
+    <li>AbstractPersonService#updatePerson(Person) will be implemented.</li>
+</ul>
+<p>And, in accordance with these constraints, each program will produce the following output
+    (5000 times, actually, for rudimentary performance testing):</p>
+<blockquote>
+    intercepted... getPerson<br/>
+    intercepted... proxied updatePerson<br/>
+    intercepted... default removePerson<br/>
+</blockquote>
+
+<p>Further, each example will make use of these:</p>
+<pre class="brush: java">
+     static final int TIMES = 5000;
+
+     static void intercepted() {
+         System.out.print("intercepted... ");
+     }
+
+     private static void usePersonService(PersonService personService) {
+
+         Person person = personService.getPerson("Jim Lahey");
+         Assert.assertEquals("Jim Lahey", person.getName());
+
+         try {
+             personService.updatePerson(person);
+         }
+         catch (Exception e) {
+             throw new RuntimeException(e);
+         }
+
+         personService.removePerson(person);
+     }
+
+     static void repeat(Procedure f) {
+         try {
+             // run once to work out initial class generation when applicable
+             f.invoke();
+
+             final long start = System.currentTimeMillis();
+             for (int i = 0; i < TIMES; i++) {
+                 f.invoke();
+             }
+             System.out.println("finished in " + (System.currentTimeMillis() - start) + " ms");
+         }
+         catch (Exception e) {
+             throw new RuntimeException(e);
+         }
+     }
+
+     @FunctionalInterface
+     private interface Procedure {
+         void invoke() throws Exception;
+     }
+</pre>
+<p>With this premise established, here are some examples using a few libraries:
+    the JDK,
+    <a href="https://github.com/cglib/cglib/wiki">cglib</a>, and
+    <a href="http://jboss-javassist.github.io/javassist/">Javassist</a>.</p>
+
+<h2>java.lang.reflect.Proxy</h2>
+<p>You might have guessed that no libraries need be pulled in for this.
+    JDK proxying is limited to implementing interfaces, which means I actually have to implement
+    AbstractPersonService "normally" like some kind of savage.
+    This implementation will be a delegate for an invocation handler.
+    An invocation handler is a typical proxying mechanism for "intercepting" calls to methods and
+    handling the calls however one feels like--within reason. One cannot, for example,
+    have an invocation handler return a type that isn't assignable to the original method's
+    return type.</p>
+
+<pre class="brush: java">
+     final PersonService unproxiedService = new AbstractPersonService(null) {
+         @Override
+         public void updatePerson(Person person) {
+             throw new UnsupportedOperationException();
+         }
+     };
+
+     final Collection&lt;Method&gt; abstractMethods = Arrays.stream(AbstractPersonService.class.getMethods())
+             .filter(abstractClassMethod -> Modifier.isAbstract(abstractClassMethod.getModifiers()))
+             .collect(Collectors.toList());
+     final java.lang.reflect.InvocationHandler handler = new java.lang.reflect.InvocationHandler() {
+         @Override
+         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+
+             intercepted();
+
+             // if the method on the abstract class is abstract, then handle it here
+             final Method unimplementedMethod = abstractMethods.stream()
+                     .filter(abstractClassMethod ->
+                             Objects.equals(abstractClassMethod.getName(), method.getName()) &&
+                             Arrays.equals(abstractClassMethod.getParameterTypes(), method.getParameterTypes()))
+                     .findFirst()
+                     .orElse(null);
+             if (unimplementedMethod != null) {
+                 System.out.println("proxied " + method.getName());
+                 return null;
+             }
+             else {
+                 return method.invoke(unproxiedService, args);
+             }
+         }
+     };
+
+     final Class&lt;PersonService&gt; implClass = (Class&lt;PersonService&gt;) Proxy.getProxyClass(
+             Thread.currentThread().getContextClassLoader(), PersonService.class);
+     try {
+         final Constructor&lt;PersonService&gt; constructor = implClass.getConstructor(
+                 java.lang.reflect.InvocationHandler.class);
+         repeat(() -> {
+             final PersonService personService = constructor.newInstance(handler);
+             usePersonService(personService);
+         });
+     }
+     catch (Exception e) {
+         throw new RuntimeException(e);
+     }
+</pre>
+<p>Doesn't it seem a little pointless to have created a Proxy when I could have just
+    fully implemented <code>unproxiedService</code>? Not to say that Proxy is not extremely useful,
+    but for this use case, it arguably is more trouble than it's worth.
+    cglib is an attractive alternative as it provides runtime subclassing.</p>
+
+<h2>cglib</h2>
+<p>This example uses this Maven dependency:</p>
+<pre class="brush: xml">
+    &lt;dependency&gt;
+         &lt;groupId&gt;cglib&lt;/groupId&gt;
+         &lt;artifactId&gt;cglib&lt;/artifactId&gt;
+         &lt;version&gt;3.2.4&lt;/version&gt;
+     &lt;/dependency&gt;
+</pre>
+<p>Spring and Guice make use of cglib. It's a mid-level tool, as opposed to
+    the high-level AspectJ and the low-level <a href="https://en.wikipedia.org/wiki/ObjectWeb_ASM">ASM</a>;
+    cglib itself uses ASM for bytecode manipulation.</p>
+<pre class="brush: java">
+     final Enhancer enhancer = new Enhancer();
+     // enhancer.setInterfaces(new Class[] { PersonService.class }); // this is inferred
+     enhancer.setSuperclass(AbstractPersonService.class);
+     enhancer.setInterceptDuringConstruction(false); // optimization
+
+     net.sf.cglib.proxy.InvocationHandler abstractCallback = (obj, method, args) -&gt; {
+
+         intercepted();
+
+         System.out.println("proxied " + method.getName());
+         return null;
+     };
+
+     net.sf.cglib.proxy.MethodInterceptor otherCallback = (obj, method, args, proxy) -&gt; {
+
+         intercepted();
+
+         // invoke the intercepted method on the enhanced object (an AbstractPersonService)
+         return proxy.invokeSuper(obj, args);
+     };
+
+     CallbackHelper callbackHelper = new CallbackHelper(
+             AbstractPersonService.class,
+             new Class[] { PersonService.class }) {
+
+         @Override
+         protected Object getCallback(Method method) {
+
+             // if the method on the abstract class is abstract, then handle it here
+             if (Modifier.isAbstract(method.getModifiers())) {
+                 return abstractCallback;
+             }
+             else {
+                 return otherCallback;
+             }
+         }
+     };
+
+     enhancer.setCallbackFilter(callbackHelper);
+     enhancer.setCallbacks(callbackHelper.getCallbacks());
+     Class[] types = new Class[] { DataSource.class };
+     Object[] args = new Object[] { null };
+     repeat(() -&gt; {
+         final PersonService personService = (PersonService) enhancer.create(types, args);
+         usePersonService(personService);
+     });
+</pre>
+
+<h2>Javassist</h2>
+<p>This example uses this Maven dependency:</p>
+<pre class="brush: xml">
+    &lt;dependency&gt;
+         &lt;groupId&gt;org.javassist&lt;/groupId&gt;
+         &lt;artifactId&gt;javassist&lt;/artifactId&gt;
+         &lt;version&gt;3.20.0-GA&lt;/version&gt;
+     &lt;/dependency&gt;
+</pre>
+<p>This is where things start to get weird.</p>
+<p>This is not really a dynamic proxying tool, but is primarily a bytecode manipulation tool
+    with kind of a mid-level interface.</p>
+<p>You may notice that I'm frequently catching exceptions and rethrowing them as RuntimeException;
+    this is for elucidation of what sorts of Throwables these things throw.</p>
+<pre class="brush: java">
+     javassist.ClassPool classPool = javassist.ClassPool.getDefault();
+     final CtClass abstractCtClass, iCtClass, personCtClass, implCtClass;
+     final CtMethod updateCtMethod;
+     try {
+         abstractCtClass = classPool.get(AbstractPersonService.class.getName());
+         iCtClass = classPool.get(PersonService.class.getName());
+         personCtClass = classPool.get(Person.class.getName());
+         implCtClass = classPool.makeClass(
+                 AbstractPersonService.class.getPackage().getName() + "." + "PersonServiceImpl",
+                 abstractCtClass);
+
+         updateCtMethod = abstractCtClass.getMethod(
+                 "updatePerson",
+                 Descriptor.ofMethod(CtClass.voidType, new CtClass[] { personCtClass }));
+     }
+     catch (NotFoundException e) {
+         throw new RuntimeException(e);
+     }
+
+
+     final CtMethod newUpdateMethod;
+     try {
+         // altering updateMethod would alter the method on the abstract CtClass! so make a copy
+         newUpdateMethod = CtNewMethod.copy(updateCtMethod, implCtClass, null);
+         newUpdateMethod.setBody("{ System.out.println(\"proxied " + updateCtMethod.getName() + "\"); }");
+         // note: addMethod must be used after setting the CtMethod body.
+         // otherwise it would be added as an abstract method, which would turn the CtClass into an abstract class.
+         implCtClass.addMethod(newUpdateMethod);
+
+         // now add the intercept calls
+         CtMethod[] methods = implCtClass.getMethods();
+         for (CtMethod method : methods) {
+             try {
+                 // if getting the method on the interface doesn't fail,
+                 // then copy the method, insert the intercept call, and add the new method
+                 iCtClass.getDeclaredMethod(method.getName(), method.getParameterTypes());
+
+                 CtMethod newMethod = CtNewMethod.copy(method, implCtClass, null);
+                 newMethod.insertBefore("{ " + this.getClass().getName() + ".intercepted(); }");
+                 if (method.getDeclaringClass() == implCtClass) {
+                    // then we're decorating the previously added updateMethod
+                     implCtClass.removeMethod(method);
+                 }
+
+                 implCtClass.addMethod(newMethod);
+             }
+             catch (NotFoundException e) {
+                 e = e; // fall through
+             }
+         }
+     }
+     catch (CannotCompileException e) {
+         throw new RuntimeException(e);
+     }
+
+     final Class&lt;? extends AbstractPersonService&gt; implClass;
+     try {
+         implClass = classPool.toClass(implCtClass);
+     }
+     catch (CannotCompileException e) {
+         throw new RuntimeException(e);
+     }
+
+     try {
+         // this works because creating the impl class automatically creates a constructor that calls super
+         final Constructor&lt;? extends AbstractPersonService&gt; constructor =
+                 implClass.getDeclaredConstructor(DataSource.class);
+         repeat(() -&gt; {
+             final PersonService personService = constructor.newInstance((DataSource) null);
+             usePersonService(personService);
+         });
+     }
+     catch (Exception e) {
+         throw new RuntimeException(e);
+     }
+</pre>
+
+<h2>ByteBuddy (a brief introduction)</h2>
+<p>I didn't create an example using <a href="http://bytebuddy.net/">ByteBuddy</a> but in this discussion it is only fair to at least point out its existence.
+    ByteBuddy has supplanted Javassist in version 2 of mocking library Mockito.
+    It fills a niche similar to that of cglib and Javassist.
+    It seems to offer a friendlier API than any of the previously mentioned tools.</p>
+
+<h2>Performance</h2>
+<p>I managed to isolate the function passed to the repeat method in all the examples to a simple sequence:
+    first, instantiate the generated ProxyService class, and second, call usePersonService on the instance.
+    Otherwise, I attempted to optimize each program as much as possible.
+    This table shows the time it took for each of these functions to be run 5000 times.
+    This was run on an early-2013 Macbook Pro.</p>
+<table class="table">
+    <tr><th>Library</th><th>Time (ms)</th></tr>
+    <tr><td>JDK</td><td>254</td></tr>
+    <tr><td>cglib</td><td>261</td></tr>
+    <tr><td>Javassist</td><td>136</td></tr>
+</table>
+<p>Javassist wins! I hypothesize that this is because the generated Javassist class does not involve handlers
+    that calls must be passed through, but is rather a new class as would be produced by compiling
+    a written implementation. But, get a load of this line:</p>
+<pre class="brush: java">
+    newMethod.insertBefore("{ " + this.getClass().getName() + ".intercepted(); }");
+</pre>
+<p>This is brittle and not something a fancy IDE will be able to include in analysis.
+    I would avoid generating code this way unless it's internal to a library.</p>
+
+<h2>Further reading</h2>
+<ul>
+    <li>spring.io: <a href="https://spring.io/blog/2007/07/19/debunking-myths-proxies-impact-performance/">Debunking myths: proxies impact performance</a></li>
+</ul>
+

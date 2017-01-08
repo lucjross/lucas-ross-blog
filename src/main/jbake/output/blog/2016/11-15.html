@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Unit Testing | RunWith anything and get Spring context too
+      </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="description" content="Lucas's Programming Blog">
+      <meta name="author" content="Lucas Ross">
+      <meta name="keywords" content="">
+      <meta name="generator" content="JBake">
+      <!-- Le styles-->
+      <link rel="stylesheet" href="../../css/bootstrap.min.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/asciidoctor.css')-->
+      <link rel="stylesheet" href="../../css/base.css">
+      <!--link(rel='stylesheet', href='#{content.rootpath}css/prettify.css')-->
+      <!-- HTML5 shim, for IE6-8 support of HTML5 elements-->
+      <!-- if lt IE 9
+      script(src='../../js/html5shiv.min.js')
+      
+      -->
+      <!-- Fav icon-->
+      <link rel="shortcut icon" href="../../favicon.ico">
+      <!-- SyntaxHighlighter-->
+      <link href="../../css/shCore.css" rel="stylesheet" type="text/css">
+      <link href="../../css/shThemeDefault.css" rel="stylesheet" type="text/css">
+    </head>
+  </html>
+  <body>
+    <div id="wrap">
+      <div role="navigation" class="navbar navbar-default navbar-fixed-top">
+        <div class="container">
+          <div class="navbar-header">
+            <button type="button" data-toggle="collapse" data-target=".navbar-collapse" class="navbar-toggle"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button><a href="../../" class="navbar-brand">Lucas's Programming Blog</a>
+          </div>
+          <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+              <li><a href="../../index.html">Home</a></li>
+              <li><a href="../../about.html">About</a></li>
+              <li><a href="../../feed.xml">Subscribe</a></li>
+              <!--li.dropdown-->
+              <!--    a(href='#', class='dropdown-toggle', data-toggle='dropdown') Dropdown <b class="caret"></b>-->
+              <!--    ul.dropdown-menu-->
+              <!--        li-->
+              <!--            a(href='#') Action-->
+              <!--        li-->
+              <!--            a(href='#') Another action-->
+              <!--        li-->
+              <!--            a(href='#') Something else here-->
+              <!--        li.divider-->
+              <!--        li.dropdown-header Nav header-->
+              <!--        li-->
+              <!--            a(href='#') Separated link-->
+              <!--        li-->
+              <!--            a(href='#') One more separated link-->
+              
+              
+              
+              
+              
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <div class="page-header">
+          <h1>Unit Testing | RunWith anything and get Spring context too</h1>
+          <p><em>15 November 2016</em></p>
+          <p>
+<p>If you want to write a test using the <a href="https://github.com/mockito/mockito/blob/master/src/main/java/org/mockito/junit/MockitoJUnitRunner.java">Mockito class runner</a>
+    or the <a href="https://github.com/junit-team/junit4/blob/master/src/main/java/org/junit/runners/Parameterized.java">JUnit Parameterized runner</a>
+    or any other runner,
+    you can't use the Spring class runner at the same time.
+    Previously, that made it tricky to get Spring application context in conjunction with Mockito
+    or advanced JUnit features.
+    Spring 4.2 gives us <a href="http://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/test/context/junit4/rules/SpringClassRule.html">JUnit TestRules that enable Spring context</a>
+    without a Spring test runner. For example:</p>
+<pre class="brush: java">
+ @RunWith(Parameterized.class)
+ @ContextConfiguration(classes = { SomeSpringConfiguration.class })
+ public class SpringClassRuleTest {
+
+     // these in conjunction are equivalent to @RunWith(SpringJUnit4ClassRunner.class)
+     @ClassRule public static final SpringClassRule SPRING_CLASS_RULE = new SpringClassRule();
+     @Rule public final SpringMethodRule springMethodRule = new SpringMethodRule();
+
+     @Autowired private Random random;
+
+     @Parameterized.Parameters
+     public static Object[] bounds() {
+         return new Object[] { 2, 4, 8, 16, 32 };
+     }
+
+     @Parameterized.Parameter
+     public int bound;
+
+     @Test
+     public void testRandom() {
+         int i = random.nextInt(bound);
+         Assert.assertTrue(i < bound);
+     }
+ }
+</pre>
+</p>
+          <!--hr-->
+        </div>
+      </div>
+    </div>
+  </body>
+  <div id="push"></div>
+  <div id="footer">
+    <div class="container">
+      <p class="muted credit">&copy; 2016 | Mixed with<a href="http://getbootstrap.com/"> Bootstrap v3.1.1</a> | Baked with<a href="http://jbake.org"> JBake <span>v2.5.0</span></a><br>All product names, logos, and brands are property of their respective owners.
+        All company, product and service names used in this website are for identification purposes only.
+        Use of these names, logos, and brands does not imply endorsement.
+      </p>
+    </div>
+  </div>
+  <script src="../../js/jquery-1.11.1.min.js"></script>
+  <script src="../../js/bootstrap.min.js"></script>
+  <!--script(src='#{content.rootpath}js/prettify.js')-->
+  <!-- SyntaxHighlighter-->
+  <script type="text/javascript" src="../../js/shCore.js"></script>
+  <script type="text/javascript" src="../../js/shBrushJava.js"></script>
+  <script type="text/javascript" src="../../js/shBrushXml.js"></script>
+  <script type="text/javascript">SyntaxHighlighter.all();</script>
+</html>

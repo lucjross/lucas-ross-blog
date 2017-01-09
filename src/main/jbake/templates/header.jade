@@ -5,9 +5,9 @@ html
       if content.title
         | #{content.title}
       else
-        | Lucas's Programming Blog
+        | #{config.site_title}
     meta(name='viewport', content='width=device-width, initial-scale=1.0')
-    meta(name='description', content="Lucas's Programming Blog")
+    meta(name='description', content="Lucas's Java Dev Blog")
     meta(name='author', content='Lucas Ross')
     meta(name='keywords', content='')
     meta(name='generator', content='JBake')
@@ -28,5 +28,5 @@ html
     link(rel='shortcut icon', href='#{content.rootpath}favicon.ico')
 
     // SyntaxHighlighter
-    link(href='#{content.rootpath}css/shCore.css' rel='stylesheet' type='text/css')
-    link(href='#{content.rootpath}css/shThemeDefault.css' rel='stylesheet' type='text/css')
+    link(href='#{content.rootpath}css/shCoreRDark.css' rel='stylesheet' type='text/css')
+    link(href='#{content.rootpath}css/shThemeRDark.css' rel='stylesheet' type='text/css')

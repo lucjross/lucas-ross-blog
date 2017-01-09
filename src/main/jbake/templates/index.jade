@@ -6,14 +6,15 @@ html
       include menu.jade
       div.container
         div.page-header
-          h1 Lucas's Programming Blog
+          h1 #{config.site_title}
 
           - var toShow = 3;
           each post in posts
             if toShow > 0
               a(href="#{post.uri}")
                 h1 #{post.title}
-              p #{formatter.format(post.date,"dd MMMM yyyy")}
+              p
+                em #{formatter.format(post.date,"dd MMMM yyyy")}
               p !{post.body}
               br
               - toShow--;

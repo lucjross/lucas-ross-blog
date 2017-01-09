@@ -74,7 +74,8 @@ status=published
      }
  }
 </pre>
-<p>Then, we can throw our instance into an AspectJ proxy factory and get a wrapper instance out of it.</p>
+<p>Then, we can throw our instance into an <a href="http://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/aop/aspectj/annotation/AspectJProxyFactory.html">AspectJ proxy factory</a>
+    and get a wrapper instance out of it.</p>
 <pre class="brush: java">
  AspectJProxyFactory aspectJProxyFactory = new AspectJProxyFactory();
  aspectJProxyFactory.setTarget(originalThings);
@@ -85,7 +86,7 @@ status=published
 </pre>
 <p>In this screenshot you can see how IntelliJ IDEA provides syntax highlighting
     and navigation markers for well-formed Aspects.</p>
-<p><img class="img-responsive" src="img/image2016-12-12 14-29-33.jpeg"/></p>
+<p><img class="img-responsive img-thumbnail" src="/img/image2016-12-12 14-29-33.jpeg"/></p>
 
 <div class="well">None of these dynamic proxying tools can extend <code>final</code> classes (anything in <code>java.lang</code>).</div>
 

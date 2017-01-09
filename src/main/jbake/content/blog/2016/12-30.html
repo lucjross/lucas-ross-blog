@@ -6,7 +6,7 @@ status=published
 ~~~~~~
 
 <p>Maybe you've seen this sort of error before:</p>
-<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 7.06.52 PM.jpeg"/></p>
+<p><img class="img-responsive img-thumbnail" src="img/Screen Shot 2016-12-14 at 7.06.52 PM.jpeg"/></p>
 
 <p>This can happen when you're running an application in IntelliJ IDEA and you select <i>Run</i> > <i>Reload Changed Classes</i>.
     As the red pop-up suggests, the VM was unable to hot-swap a class change,
@@ -32,7 +32,7 @@ status=published
     I patched a local Oracle 8u92 JDK with DCEVM using their installer jar.
     Then I somewhat arbitrarily chose a web server app to try it out with.
     The next step was creating the Run/Debug Configuration:</p>
-<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 8.30.04 PM.jpeg"/></p>
+<p><img class="img-responsive img-thumbnail" src="img/Screen Shot 2016-12-14 at 8.30.04 PM.jpeg"/></p>
 
 <p>I started the server and saw in the logs that the agent was active:</p>
 <blockquote>
@@ -43,6 +43,6 @@ status=published
 <p>While it was still running, I added a method to a class (one that had already been loaded by a ClassLoader),
     and hit <i>Reload Changed Classes</i>. Good news:</p>
 
-<p><img class="img-responsive" src="img/Screen Shot 2016-12-14 at 7.12.23 PM.jpeg"/></p>
+<p><img class="img-responsive img-thumbnail" src="img/Screen Shot 2016-12-14 at 7.12.23 PM.jpeg"/></p>
 
 <p>This saved me about thirty seconds that I would have had to spend waiting for a server restart.</p>
